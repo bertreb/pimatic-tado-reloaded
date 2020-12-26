@@ -1,0 +1,44 @@
+{
+  "name": "pimatic-tado-reloaded",
+  "description": "reloaded pimatic plugin for Tado device",
+  "author": "bertreb",
+  "main": "tado",
+  "files": [
+    "tado.coffee",
+    "README.md",
+    "tado-client.coffee",
+    "tado-config-schema.coffee",
+    "device-config-schema.coffee"
+  ],
+  "version": "0.0.1",
+  "homepage": "http://github.com/bertreb/pimatic-tado-reloaded",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/bertreb/pimatic-tado-reloaded.git"
+  },
+  "configSchema": "tado-config-schema.coffee",
+  "dependencies": {
+    "bluebird-retry": "^0.11.0",
+    "pimatic-plugin-commons": "^0.9.3",
+    "moment": 
+    "request": 
+  },
+   "peerDependencies": {
+  },
+  "engines": {
+    "node": "^4.6.2",
+    "npm": "^2.15.11"
+  },
+  "bugs": {
+     "url": "https://github.com/bertreb/pimatic-tado-reloaded/issues"
+   },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "pimatic",
+    "tado"
+  ],
+  "license": "GPL-3.0"
+}
