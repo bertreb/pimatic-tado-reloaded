@@ -5,5 +5,5 @@ This plugin is for connecting Tado devices to Pimatic. Its a reloaded version of
 
 Major changes:
 - node 8+ compatible
-- added set temperature and power functions
-- added rules handling for power and set temprature
+- added set temperature and power functions (tbd)
+- added rules handling for power and set temprature (tbd)
