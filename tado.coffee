@@ -5,9 +5,12 @@ module.exports = (env) ->
   # Require the [cassert library](https://github.com/rhoot/cassert).
   assert = env.require 'cassert'
   #require tado client
+  M = env.matcher
+  _ = require('lodash')
   retry = require 'bluebird-retry'
   commons = require('pimatic-plugin-commons')(env)
   TadoClient = require('./tado-client.coffee')(env)
+
 
   class TadoPlugin extends env.plugins.Plugin
 
@@ -63,6 +66,9 @@ module.exports = (env) ->
           return device
       })
 
+      @framework.ruleManager.addActionProvider(new TadoActionProvider(@framework))
+
+
       @framework.deviceManager.on 'discover', () =>
         #climate devices
         @loginPromise
@@ -85,7 +91,7 @@ module.exports = (env) ->
                   'TadoClimate', config.name, config)
             Promise.resolve(true)
           , (err) ->
-            env.logger.error(err.error_description || err)
+            #env.logger.error(err.error_description || err)
             Promise.reject(err)
         .then (success) =>
           return @client.mobileDevices(@home.id)
@@ -108,7 +114,7 @@ module.exports = (env) ->
             env.logger.error(err.error_description || err)
             Promise.reject(err)
         .catch (err) ->
-          env.logger.error(err.error_description || err)
+          #env.logger.error(err.error_description || err)
           Promise.reject(err)
 
     
@@ -127,10 +133,29 @@ module.exports = (env) ->
         description: "The measured temperature"
         type: "number"
         unit: '°C'
+        acronym: "room temp"
       humidity:
         description: "The actual degree of Humidity"
         type: "number"
         unit: '%'
+        acronym: "room hum"
+      setPoint:
+        description: "The setPoint temperature"
+        type: "number"
+        unit: '°C'
+        acronym: "set temp"
+      mode:
+        description: "The thermostat mode"
+        type: "boolean"
+        unit: ''
+        acronym: "mode"
+        labels: ["AUTO","MANUAL"]
+      power:
+        description: "The power state"
+        type: "boolean"
+        unit: ''
+        acronym: "power"
+        labels: ["ON","OFF"]
 
     constructor: (@config, lastState,@framework) ->
       @name = @config.name
@@ -138,19 +163,17 @@ module.exports = (env) ->
       @zone = @config.zone
       @_temperature = lastState?.temperature?.value
       @_humidity = lastState?.humidity?.value
+      @_setPoint = lastState?.setPoint?.value
+      @_mode = lastState?.mode?.value
+      @_power = lastState?.power?.value
       @_timestampTemp = null
       @_timestampHum = null
       @lastState = null
       super()
-
       
       @requestClimate()
       @requestClimateIntervalId =
         setInterval( ( => @requestClimate() ), @config.interval)
-
-    destroy: () ->
-      clearInterval @requestClimateIntervalId if @requestClimateIntervalId?
-      super()
 
     requestClimate: ->
       if plugin.loginPromise? and plugin.home?.id
@@ -166,6 +189,15 @@ module.exports = (env) ->
           if state.sensorDataPoints.humidity.timestamp != @_timestampHum
             @_humidity = state.sensorDataPoints.humidity.percentage
             @emit "humidity", @_humidity
+          if state.setting.power?
+            if state.setting.power is "ON"
+              @_power = true
+            else 
+              @_power = false
+            @emit "power", @_power
+          if state.setting.temperature?
+            @_setPoint = state.setting.temperature
+            @emit "setPoint", @_setPoint
           Promise.resolve(state)
         .catch (err) =>
           env.logger.error(err.error_description || (err.code || err) )
@@ -173,8 +205,113 @@ module.exports = (env) ->
             env.logger.debug("homeId=:" + plugin.home.id)
           Promise.reject(err)
            
+    setTemperature: (temperature) =>
+      return new Promise((resolve,reject) =>
+        @_temperature = temperature
+        @emit "SetPoint", temperature
+        @_mode = "MANUAL"
+        @emit "mode", @_mode
+        env.logger.debug "Setting temperature setPoint set to #{temperature}"
+        plugin.client.setTemperature(plugin.home.id, @zone, temperature)
+        .then((res)=>
+          resolve()
+        ).catch((err)=>
+          reject(err)
+        )
+      )
+
+    setPower: (power) =>
+      return new Promise((resolve,reject) =>
+        @_power = power
+        @emit "power", power
+        if power
+          _power = "on"
+        else
+          _power = "off"
+        env.logger.debug "Setting power #{power}"
+        plugin.client.setPower(plugin.home.id, @zone, _power)
+        .then((res)=>
+          env.logger.debug "Result plugin.client.setPower: " + JSON.stringify(res,null,2)
+          resolve()
+        ).catch((err)=>
+          reject(err)
+        )
+      )
+
+    setAuto: () =>
+      return new Promise((resolve,reject) =>
+        @_mode = "AUTO"
+        @emit "mode", @_mode
+        env.logger.debug "Setting mode to AUTO"
+        plugin.client.setAuto(plugin.home.id, @zone)
+        .then((res)=>
+          env.logger.debug "Result plugin.client.setAuto: " + JSON.stringify(res,null,2)
+          resolve()
+        ).catch((err)=>
+          reject(err)
+        )
+      )
+
     getTemperature: -> Promise.resolve(@_temperature)
     getHumidity: -> Promise.resolve(@_humidity)
+    getSetPoint: -> Promise.resolve(@_setPoint)
+    getMode: -> Promise.resolve(@_mode)
+    getPower: -> Promise.resolve(@_power)
+
+    execute: (command, value) =>
+      return new Promise((resolve,reject) =>
+        switch command
+          when "auto"
+            #switch Tado device on with current temp setting
+            @setAuto()
+            .then(()->
+              env.logger.debug "Mode set to AUTO"
+              resolve()
+            ).catch((err)=>
+              env.logger.debug "Failed to setMode to AUTO: " + JSON.stringify(err,null,2)
+              reject()
+            )
+          when "power"
+            #switch Tado device on with current temp setting
+            @setPower(value)
+            .then(()->
+              env.logger.debug "Power set to #{_power}"
+              resolve()
+            ).catch((err)=>
+              env.logger.debug "Failed to setPower to #{value}: " + JSON.stringify(err,null,2)
+              reject()
+            )
+          when "temperature"
+            if value?
+              # check if value(setPoint) is number and is in valid range
+              if Number.isNaN(Number value)
+                env.logger.debug "setpoint #{value} is not a number"
+                reject()
+              else
+                _setPoint = Number value
+                if _setPoint >= 15 and _setPoint <= 25
+                  #set overlay to manual mode with new temprature
+                  @setTemperature(_setPoint)
+                  .then(()=>
+                    env.logger.debug "Temperature setPoint set to #{temperature}"
+                    resolve()
+                  ).catch((err)=>
+                    env.logger.debug "Failed setting temperature: " + JSON.stringify(err,null,2)
+                    reject()
+                  )
+                else
+                  env.logger.debug "setpoint #{_setPoint} is not within a valid range (15-25)"
+                  reject()                  
+          else
+            env.logger.debug "Unknown command: #{command}"
+            reject()
+        resolve()
+      )
+
+    destroy: () ->
+      clearInterval @requestClimateIntervalId if @requestClimateIntervalId?
+      super()
+
 
   class TadoPresence extends env.devices.PresenceSensor
     _presence: undefined
@@ -231,5 +368,115 @@ module.exports = (env) ->
 
     getPresence: -> Promise.resolve(@_presence)
     getRelativeDistance: -> Promise.resolve(@_relativeDistance)
+
+  class TadoActionProvider extends env.actions.ActionProvider
+
+    constructor: (@framework) ->
+
+    parseAction: (input, context) =>
+
+      tadoDevice = null
+      @value = null
+      @valueStringVar = null
+
+      tadoDevices = _(@framework.deviceManager.devices).values().filter(
+        (device) => device.config.class == "TadoClimate"
+      ).value()
+
+      setCommand = (command) =>
+        @command = command
+
+      setTemp = (m,tokens) =>
+        unless tokens>=15 and tokens<=25
+          context?.addError("Temperature must be >=15°C and <=25°C")
+          return
+        setCommand("temperature")
+        @value = Number tokens
+
+      tempString = (m,tokens) =>
+        unless tokens?
+          context?.addError("No variable")
+          return
+        @valueStringVar = tokens
+        setCommand("temperature")
+        return
+
+      m = M(input, context)
+        .match('tado ')
+        .matchDevice(tadoDevices, (m, d) ->
+          # Already had a match with another device?
+          if tadoDevice? and tadoDevice.id isnt d.id
+            context?.addError(""""#{input.trim()}" is ambiguous.""")
+            return
+          tadoDevice = d
+        )
+        .or([
+          ((m) =>
+            return m.match(' on', (m) =>
+              setCommand('power')
+              @value = true
+              match = m.getFullMatch()
+            )
+          ),
+          ((m) =>
+            return m.match(' off', (m) =>
+              setCommand('power')
+              @value = false
+              match = m.getFullMatch()
+            )
+          ),
+          ((m) =>
+            return m.match(' auto', (m) =>
+              setCommand('mode')
+              @value = 'auto'
+              match = m.getFullMatch()
+            )
+          ),
+          ((m) =>
+            return m.match(' set ')
+              .or([
+                ((m) =>
+                  return m.matchNumber(setTemp)
+                ),
+                ((m) =>
+                  return m.matchVariable(tempString)
+                )
+              ])
+          )
+        ])
+
+      match = m.getFullMatch()
+      if match? #m.hadMatch()
+        env.logger.debug "Rule matched: '", match, "' and passed to Action handler"
+        return {
+          token: match
+          nextInput: input.substring(match.length)
+          actionHandler: new TadoActionHandler(@framework, tadoDevice, @command, @value, @valueStringVar)
+        }
+      else
+        return null
+
+
+  class TadoActionHandler extends env.actions.ActionHandler
+
+    constructor: (@framework, @tadoDevice, @command, @value, @valueStringVar) ->
+
+    executeAction: (simulate) =>
+      if simulate
+        return __("would have controlled tado \"%s\"", "")
+      else
+        if @valueStringVar?
+          _var = @valueStringVar.slice(1) if @valueStringVar.indexOf('$') >= 0
+          _value = @framework.variableManager.getVariableValue(_var)
+        else
+          _value = @value
+
+        @tadoDevice.execute(@command, _value)
+        .then(()=>
+          return __("\"%s\" Rule executed", @command)
+        ).catch((err)=>
+          return __("\"%s\" Rule not executed", "")
+        )
+
 
   return plugin
