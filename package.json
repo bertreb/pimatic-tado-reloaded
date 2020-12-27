@@ -18,20 +18,21 @@
   },
   "configSchema": "tado-config-schema.coffee",
   "dependencies": {
-    "bluebird-retry": ">=0.11.0",
+    "bluebird-retry": "^0.11.0",
     "pimatic-plugin-commons": "^0.9.3",
     "moment": ">=2.29.1",
     "request": "^2.79.0"
   },
-   "peerDependencies": {
+  "peerDependencies": {
+    "pimatic": ">=0.9.0"
   },
   "engines": {
     "node": "^4.6.2",
     "npm": "^2.15.11"
   },
   "bugs": {
-     "url": "https://github.com/bertreb/pimatic-tado-reloaded/issues"
-   },
+    "url": "https://github.com/bertreb/pimatic-tado-reloaded/issues"
+  },
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

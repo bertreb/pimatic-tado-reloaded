@@ -15,7 +15,7 @@ module.exports = (env) ->
       
       @base = commons.base @, 'TadoPlugin'
       @client = new TadoClient
-      @loginPromise = Promise.reject(new Error('tado is not logged in (yet)!'))
+      @loginPromise = null # Promise.reject(new Error('tado is not logged in (yet)!'))
       # wait for pimatic to finish starting http(s) server
       @framework.once "server listen", =>
         env.logger.info("Pimatic server started, initializing tado connection") 
