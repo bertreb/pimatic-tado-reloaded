@@ -1,5 +1,5 @@
 module.exports = {
-  title: "pimatic-tado device config schemas"
+  title: "pimatic-tado-reloaded device config schemas"
   TadoClimate: {
     title: "TadoClimate config options"
     type: "object"
@@ -20,7 +20,7 @@ module.exports = {
     extensions: ["xLink", "xAttributeOptions"]
     properties:
       deviceId:
-        description: "Tado ID of the mobile device"
+        description: "Tado id of the mobile device"
         type: "integer"
         default: 1
       interval:

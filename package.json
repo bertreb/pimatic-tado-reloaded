@@ -1,6 +1,6 @@
 {
   "name": "pimatic-tado-reloaded",
-  "description": "reloaded pimatic plugin for Tado device",
+  "description": "pimatic plugin for Tado devices",
   "author": "bertreb",
   "main": "tado",
   "files": [
@@ -18,10 +18,10 @@
   },
   "configSchema": "tado-config-schema.coffee",
   "dependencies": {
-    "bluebird-retry": "^0.11.0",
+    "bluebird-retry": ">=0.11.0",
     "pimatic-plugin-commons": "^0.9.3",
-    "moment": 
-    "request": 
+    "moment": ">=2.29.1",
+    "request": "^2.79.0"
   },
    "peerDependencies": {
   },

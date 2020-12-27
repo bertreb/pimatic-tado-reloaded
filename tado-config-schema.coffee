@@ -1,6 +1,6 @@
-# #pimatic-tado configuration options
+# #pimatic-tado-reloaded configuration options
 module.exports = {
-  title: "tado plugin config options"
+  title: "tado-reloaded plugin config options"
   type: "object"
   properties: {
     loginname:

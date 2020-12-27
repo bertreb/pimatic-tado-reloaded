@@ -2,7 +2,7 @@ module.exports = (env) ->
 
   class Client
 
-    request = env.require('request') #needle
+    request = env.require('request') #needle?
     moment = env.require('moment')
     BASE_URL = 'https://my.tado.com'
     AUTH_URL = 'https://auth.tado.com'

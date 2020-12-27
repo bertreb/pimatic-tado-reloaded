@@ -67,7 +67,7 @@ module.exports = (env) ->
         #climate devices
         @loginPromise
         .then (success) =>
-          @framework.deviceManager.discoverMessage("pimatic-tado", "discovering devices..")
+          @framework.deviceManager.discoverMessage("pimatic-tado-reloaded", "discovering devices...")
           return @client.zones(@home.id)
           .then (zones) =>
             id = null
@@ -157,16 +157,16 @@ module.exports = (env) ->
         plugin.loginPromise
         .then (success) =>
           return plugin.client.state(plugin.home.id, @zone)
-          .then (state) =>
-            if @config.debug
-              env.logger.debug("state received: #{JSON.stringify(state)}")
-            if state.sensorDataPoints.insideTemperature.timestamp != @_timestampTemp
-              @_temperature = state.sensorDataPoints.insideTemperature.celsius
-              @emit "temperature", @_temperature
-            if state.sensorDataPoints.humidity.timestamp != @_timestampHum
-              @_humidity = state.sensorDataPoints.humidity.percentage
-              @emit "humidity", @_humidity
-            Promise.resolve(state)
+        .then (state) =>
+          if @config.debug
+            env.logger.debug("state received: #{JSON.stringify(state)}")
+          if state.sensorDataPoints.insideTemperature.timestamp != @_timestampTemp
+            @_temperature = state.sensorDataPoints.insideTemperature.celsius
+            @emit "temperature", @_temperature
+          if state.sensorDataPoints.humidity.timestamp != @_timestampHum
+            @_humidity = state.sensorDataPoints.humidity.percentage
+            @emit "humidity", @_humidity
+          Promise.resolve(state)
         .catch (err) =>
           env.logger.error(err.error_description || (err.code || err) )
           if @config.debug
@@ -213,16 +213,16 @@ module.exports = (env) ->
         plugin.loginPromise
         .then (success) =>
           return plugin.client.mobileDevices(plugin.home.id)
-          .then (mobileDevices) =>
-            if @config.debug
-              env.logger.debug("mobileDevices received: #{JSON.stringify(mobileDevices)}")
-            for mobileDevice in mobileDevices
-              if mobileDevice.id == @deviceId
-                @_presence =  mobileDevice.location.atHome
-                @_relativeDistance = (1-mobileDevice.location.relativeDistanceFromHomeFence) * 100
-                @emit "presence", @_presence
-                @emit "relativeDistance", @_relativeDistance
-            Promise.resolve(mobileDevices)
+        .then (mobileDevices) =>
+          if @config.debug
+            env.logger.debug("mobileDevices received: #{JSON.stringify(mobileDevices)}")
+          for mobileDevice in mobileDevices
+            if mobileDevice.id == @deviceId
+              @_presence =  mobileDevice.location.atHome
+              @_relativeDistance = (1-mobileDevice.location.relativeDistanceFromHomeFence) * 100
+              @emit "presence", @_presence
+              @emit "relativeDistance", @_relativeDistance
+          Promise.resolve(mobileDevices)
         .catch (err) =>
           env.logger.error(err.error_description || (err.code || err))
           if @config.debug
