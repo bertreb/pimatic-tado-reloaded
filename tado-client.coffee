@@ -91,7 +91,7 @@ module.exports = (env) ->
               referer: REFERER
             auth:
               bearer: this.token.access_token
-            setting: data
+            body: data
           , (err, response, result) ->
             if (err || response.statusCode != 200)
               reject(err || result)
@@ -103,6 +103,7 @@ module.exports = (env) ->
 
     apiDelete:(path) ->
       return this.refreshToken().then(() =>
+        console.log("Path: "+path)
         return new Promise((resolve, reject) =>
           request.delete(
             url: BASE_URL + '/api/v2' + path
@@ -112,7 +113,7 @@ module.exports = (env) ->
             auth:
               bearer: this.token.access_token
           , (err, response, result) ->
-            if (err || response.statusCode != 200)
+            if (err || response.statusCode != 200 || response.statusCode != 204 )
               reject(err || result)
             else
               resolve(result)
@@ -140,29 +141,32 @@ module.exports = (env) ->
       return this.api("/homes/#{homeId}/mobileDevices")
 
 
-    setPower:(homeId, zoneId, power) =>
-      this.power = power
+    setState:(homeId, zoneId, pwr, temp) =>
       data =
         setting:
           type: "HEATING"
-          power: this.power
+          power: pwr
           temperature: 
-            celcius: this.setPoint
+            celsius: temp
         termination:
           type: "MANUAL"
+      console.log("setState data: "+JSON.stringify(data,null,2))
       return this.apiSet("/homes/#{homeId}/zones/#{zoneId}/overlay", data)
 
+    ###
     setTemperature:(homeId, zoneId, temperature) =>
       this.setPoint = temperature
       data =
         setting:
           type: "HEATING"
-          power: this.power
+          power: this.power || "ON"
           temperature: 
-            celcius: this.temperature
+            celsius: this.setPoint
+            #fahrenheit: Math.round((10 * (this.setPoint * 9/5 + 32)))/10
         termination:
           type: "MANUAL"
       return this.apiSet("/homes/#{homeId}/zones/#{zoneId}/overlay", data)
+    ###
 
     setAuto:(homeId, zoneId) ->
       return this.apiDelete("/homes/#{homeId}/zones/#{zoneId}/overlay")

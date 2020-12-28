@@ -164,7 +164,7 @@ module.exports = (env) ->
       @_temperature = lastState?.temperature?.value
       @_humidity = lastState?.humidity?.value
       @_setPoint = lastState?.setPoint?.value
-      @_mode = lastState?.mode?.value
+      @_mode = lastState?.mode?.value ? "AUTO"
       @_power = lastState?.power?.value
       @_timestampTemp = null
       @_timestampHum = null
@@ -176,13 +176,16 @@ module.exports = (env) ->
         setInterval( ( => @requestClimate() ), @config.interval)
 
     requestClimate: ->
+      env.logger.debug "Start requestClimate " + plugin.loginPromise  #+ ", home.id: " + plugin.home.id
       if plugin.loginPromise? and plugin.home?.id
         plugin.loginPromise
         .then (success) =>
+          #env.logger.debug "loginPromise: home.id: " + (plugin.home.id) + ", zone: " + @zone
           return plugin.client.state(plugin.home.id, @zone)
         .then (state) =>
-          if @config.debug
-            env.logger.debug("state received: #{JSON.stringify(state)}")
+          #env.logger.debug "debug: " + plugin.config.debug + ", state received: "+ JSON.stringify(state,null,2)        
+          if plugin.config.debug
+            env.logger.debug("state debug received: #{JSON.stringify(state)}")
           if state.sensorDataPoints.insideTemperature.timestamp != @_timestampTemp
             @_temperature = state.sensorDataPoints.insideTemperature.celsius
             @emit "temperature", @_temperature
@@ -195,60 +198,66 @@ module.exports = (env) ->
             else 
               @_power = false
             @emit "power", @_power
-          if state.setting.temperature?
-            @_setPoint = state.setting.temperature
+          if state.setting.temperature?.celsius?
+            @_setPoint = state.setting.temperature.celsius
             @emit "setPoint", @_setPoint
+          if state.overlay? and state.overlayType is "MANUAL" 
+            @_mode = false
+            @emit "mode", @_mode
+          else
+            @_mode = true
+            @emit "mode", @_mode
           Promise.resolve(state)
         .catch (err) =>
           env.logger.error(err.error_description || (err.code || err) )
           if @config.debug
             env.logger.debug("homeId=:" + plugin.home.id)
           Promise.reject(err)
+
+    powerTxt:(power)=>
+      if power then return "ON" else return "OFF"
            
     setTemperature: (temperature) =>
       return new Promise((resolve,reject) =>
-        @_temperature = temperature
-        @emit "SetPoint", temperature
-        @_mode = "MANUAL"
-        @emit "mode", @_mode
         env.logger.debug "Setting temperature setPoint set to #{temperature}"
-        plugin.client.setTemperature(plugin.home.id, @zone, temperature)
+        plugin.client.setState(plugin.home.id, @zone, @powerTxt(@_power), temperature)
         .then((res)=>
+          env.logger.debug "Temperature set: " + JSON.stringify(res,null,2) if res?
+          @_temperature = temperature
+          @emit "setPoint", temperature
+          @_mode = "MANUAL"
+          @emit "mode", @_mode
           resolve()
         ).catch((err)=>
-          reject(err)
+          env.logger.debug "error setPower: " + JSON.stringify(err,null,2)
         )
       )
 
     setPower: (power) =>
       return new Promise((resolve,reject) =>
-        @_power = power
-        @emit "power", power
-        if power
-          _power = "on"
-        else
-          _power = "off"
-        env.logger.debug "Setting power #{power}"
-        plugin.client.setPower(plugin.home.id, @zone, _power)
+        env.logger.debug "Setting power to #{power}"
+        plugin.client.setState(plugin.home.id, @zone, @powerTxt(power), @_setPoint)
         .then((res)=>
-          env.logger.debug "Result plugin.client.setPower: " + JSON.stringify(res,null,2)
+          env.logger.debug "Result plugin.client.setPower: " + JSON.stringify(res,null,2) if res?
+          @_power = power
+          @emit "power", power
           resolve()
         ).catch((err)=>
-          reject(err)
+          env.logger.debug "error setPower: " + JSON.stringify(err,null,2)
         )
       )
 
     setAuto: () =>
       return new Promise((resolve,reject) =>
-        @_mode = "AUTO"
-        @emit "mode", @_mode
         env.logger.debug "Setting mode to AUTO"
         plugin.client.setAuto(plugin.home.id, @zone)
         .then((res)=>
-          env.logger.debug "Result plugin.client.setAuto: " + JSON.stringify(res,null,2)
+          env.logger.debug "Result plugin.client.setAuto: " + JSON.stringify(res,null,2) if res?
+          @_mode = false
+          @emit "mode", @_mode
           resolve()
         ).catch((err)=>
-          reject(err)
+          env.logger.debug "error setPower: " + JSON.stringify(err,null,2)
         )
       )
 
@@ -261,22 +270,28 @@ module.exports = (env) ->
     execute: (command, value) =>
       return new Promise((resolve,reject) =>
         switch command
-          when "auto"
+          when "mode"
             #switch Tado device on with current temp setting
-            @setAuto()
-            .then(()->
-              env.logger.debug "Mode set to AUTO"
-              resolve()
-            ).catch((err)=>
-              env.logger.debug "Failed to setMode to AUTO: " + JSON.stringify(err,null,2)
+            if value is "auto"
+              @setAuto()
+              .then(()->
+                env.logger.debug "Mode set to AUTO"
+                resolve()
+                return
+              ).catch((err)=>
+                env.logger.debug "Failed to setMode to AUTO: " + JSON.stringify(err,null,2)
+                reject()
+              )
+            else
+              env.logger.debug "Mode #{value} not implemented"
               reject()
-            )
           when "power"
             #switch Tado device on with current temp setting
             @setPower(value)
             .then(()->
               env.logger.debug "Power set to #{_power}"
               resolve()
+              return
             ).catch((err)=>
               env.logger.debug "Failed to setPower to #{value}: " + JSON.stringify(err,null,2)
               reject()
@@ -295,6 +310,7 @@ module.exports = (env) ->
                   .then(()=>
                     env.logger.debug "Temperature setPoint set to #{temperature}"
                     resolve()
+                    return
                   ).catch((err)=>
                     env.logger.debug "Failed setting temperature: " + JSON.stringify(err,null,2)
                     reject()
