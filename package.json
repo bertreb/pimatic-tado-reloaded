@@ -12,7 +12,7 @@
     "screens",
     "ui"
   ],
-  "version": "0.1.1",
+  "version": "0.1.2",
   "homepage": "http://github.com/bertreb/pimatic-tado-reloaded",
   "repository": {
     "type": "git",

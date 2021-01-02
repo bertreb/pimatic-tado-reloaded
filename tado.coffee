@@ -94,13 +94,13 @@ module.exports = (env) ->
                 id = @base.generateDeviceId @framework, zone.name.toLowerCase(), id
                 id = id.toLowerCase().replace(/\s/g,'')
                 config =
-                  class: 'TadoClimate'
+                  class: 'TadoThemostat'
                   id: id
                   zone: zone.id
                   name: zone.name
                   interval: 120000
                 @framework.deviceManager.discoveredDevice(
-                  'TadoClimate', config.name, config)
+                  'TadoThermostat', config.name, config)
             Promise.resolve(true)
           , (err) ->
             #env.logger.error(err.error_description || err)
