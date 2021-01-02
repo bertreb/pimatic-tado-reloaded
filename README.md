@@ -17,8 +17,7 @@ The default mode is 'heat'. This is the mode for the most common used heating sy
 ### The device config
 ```
 zone: "Tado zone id"
-interval: "Interval in ms to interace with Tado web, 
-  the minimal reading interval should be 120000 (2 min)"
+interval: "Interval in ms to interace with Tado web, minimum should be 120000 (2 min)"
   default: 120000
 heating: "Supports heating if enabled"
   default: true
@@ -45,9 +44,9 @@ thermostat <TadoThermostat device>
 ### The variables to be set
 ```
 - setPoint: The target temperature in heat or cool mode.
-- setPointLow: The low target temperature in heatcool mode. 
+- setPointLow: The low target temperature in heatcool mode.
   Below that value the heater will turn on. The second input in the gui.
-- setPointHigh: The high target temperature in heatcool mode. 
+- setPointHigh: The high target temperature in heatcool mode.
   Above that value the cooler with turn on. The third input in the gui
 - eco: Set the whole thermostat in eco state
 - power: Switch the thermostat on or off
