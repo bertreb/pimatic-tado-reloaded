@@ -26,7 +26,7 @@ thermostat <TadoThermostat device>
 
 The variables to be set:
 `
-- setPoint: The target temperature in heat or cool mode. 
+- setPoint: The target temperature in heat or cool mode.
 - setPointLow: The low target temperature in heatcool mode. Below that value the heater will turn on. The second input in the gui.
 - setPointHigh: The high target temperature in heatcool mode. Above that value the cooler with turn on. The third input in the gui
 - eco: Set the whole thermostat in eco state
@@ -41,5 +41,6 @@ The state variables:
 - heater: True if the heater is on
 - cooler: True if the cooler is on
 `
-With this device you get the maximum thermostat functionality in Google Assistant. For that this device can be added in pimatic-assistant.
+
+With this device you get the maximum thermostat functionality in Google Assistant. This device can be added in pimatic-assistant.
 Real heaters and coolers can be connected via rules based on the TadoThermostat variables.
