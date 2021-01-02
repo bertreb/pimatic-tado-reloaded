@@ -38,7 +38,7 @@ thermostat <TadoThermostat device>
     on | eco | off |
     setpoint [<temperature>|<$temp variable>] |
     setpoint low [<temperature>|<$temp variable>] | setpoint high [<temperature>|<$temp variable] |
-    program manual | program auto
+    manual | auto
 ```
 
 ### The variables to be set
@@ -51,7 +51,8 @@ thermostat <TadoThermostat device>
 - eco: Set the whole thermostat in eco state
 - power: Switch the thermostat on or off
 - mode: The current mode of the heater (heat,heatcool or cool)
-- program: The current program  (manual or auto)
+- manual : Set the current program to manual
+- auto : Set the current program to auto
 ```
 
 ### The state variables

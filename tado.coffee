@@ -884,22 +884,17 @@ module.exports = (env) ->
               ])
           ),
           ((m) =>
-            return m.match(' program ')
-              .or([
-                ((m) =>
-                  return m.match(' manual', (m)=>
-                    setCommand('manual')
-                    match = m.getFullMatch()
-                  )
-                ),
-                ((m) =>
-                  return m.match(' auto', (m)=>
-                    setCommand('auto')
-                    match = m.getFullMatch()
-                  )
-                )
-              ])
-          )
+            return m.match(' auto', (m)=>
+              setCommand('auto')
+              match = m.getFullMatch()
+            )
+          ),
+          ((m) =>
+            return m.match(' manual', (m)=>
+              setCommand('manual')
+              match = m.getFullMatch()
+            )
+          ),
         ])
 
       match = m.getFullMatch()
