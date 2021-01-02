@@ -12,6 +12,24 @@ The TadoThermostat device is a thermostat device with a heat, heatcool and cool 
 
 ![](/screens/tado-thermostat.png)
 
+The default mode is 'heat'. This is the mode for the most common used heating systems. The cool and heatcool modes are for airco type of climate control. In the device config you can enable/disable the modes, depending on your thermostat functionality.
+
+The device config
+```
+zone: "Tado zone id"
+interval:"Interval in ms to interace with Tado web, the minimal reading interval should be 120000 (2 min)"
+  default: 120000
+heating: "Supports heating if enabled"
+  default: true
+cooling: "Supports cooling if enabled"
+  default: false
+heatcool: "Supports heating and cooling if enabled"
+  default: false
+minThresholdCelsius: "supported minimum temperature range for this device (in degrees Celsius)"
+  default: 5
+maxThresholdCelsius: "supported maximum temperature range for this device (in degrees Celsius)"
+  default: 30
+```
 
 The rules syntax:
 
