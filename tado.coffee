@@ -94,7 +94,7 @@ module.exports = (env) ->
                 id = @base.generateDeviceId @framework, zone.name.toLowerCase(), id
                 id = id.toLowerCase().replace(/\s/g,'')
                 config =
-                  class: 'TadoThemostat'
+                  class: 'TadoThermostat'
                   id: id
                   zone: zone.id
                   name: zone.name
