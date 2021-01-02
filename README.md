@@ -45,9 +45,9 @@ thermostat <TadoThermostat device>
 ```
 - setPoint: The target temperature in heat or cool mode. The left input in the gui
 - setPointLow: The low target temperature in heatcool mode
-  Below that value the heater will turn on. The second input in the gui
+  Below that value the heater will turn on. The middle input in the gui
 - setPointHigh: The high target temperature in heatcool mode.
-  Above that value the cooler with turn on. The third input in the gui
+  Above that value the cooler with turn on. The right input in the gui
 - eco: Set the whole thermostat in eco state
 - power: Switch the thermostat on or off
 - mode: The current mode of the heater (heat,heatcool or cool)
