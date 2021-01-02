@@ -8,9 +8,10 @@
     "README.md",
     "tado-client.coffee",
     "tado-config-schema.coffee",
-    "device-config-schema.coffee"
+    "device-config-schema.coffee",
+    "screens"
   ],
-  "version": "0.0.1",
+  "version": "0.1.0",
   "homepage": "http://github.com/bertreb/pimatic-tado-reloaded",
   "repository": {
     "type": "git",

@@ -41,7 +41,7 @@ module.exports = (env) ->
           ).then (connected) =>
             env.logger.info("Login established, connected with tado web interface")
             return @client.me().then (home_info) =>
-              env.logger.info("Connected to #{home_info.homes[0].name} with id: #{home_info.homes[0].id}")
+              env.logger.info("Connected to #{home_info.homes[0].name} with id: #{home_info.homes[0].id}") if home_info.homes[0]?.name?
               if @config.debug
                 env.logger.debug(JSON.stringify(home_info))
               @setHome(home_info.homes[0])
@@ -52,10 +52,10 @@ module.exports = (env) ->
       #
       deviceConfigDef = require("./device-config-schema")
 
-      @framework.deviceManager.registerDeviceClass("TadoClimate", {
-        configDef: deviceConfigDef.TadoClimate,
+      @framework.deviceManager.registerDeviceClass("TadoThermostat", {
+        configDef: deviceConfigDef.TadoThermostat,
         createCallback: (config, lastState) =>
-          device = new TadoClimate(config, lastState,@framework)
+          device = new TadoThermostat(config, lastState,@framework)
           return device
       })
 
@@ -68,6 +68,18 @@ module.exports = (env) ->
 
       @framework.ruleManager.addActionProvider(new TadoActionProvider(@framework))
 
+      @framework.on "after init", =>
+        # Check if the mobile-frontend was loaded and get a instance
+        mobileFrontend = @framework.pluginManager.getPlugin 'mobile-frontend'
+        if mobileFrontend?
+          mobileFrontend.registerAssetFile 'js', 'pimatic-tado-reloaded/ui/tado.coffee'
+          mobileFrontend.registerAssetFile 'css', 'pimatic-tado-reloaded/ui/tado.css'
+          mobileFrontend.registerAssetFile 'html', 'pimatic-tado-reloaded/ui/tado.jade'
+          #mobileFrontend.registerAssetFile 'js', 'pimatic-tado-reloaded/ui/vendor/spectrum.js'
+          #mobileFrontend.registerAssetFile 'css', 'pimatic-tado-reloaded/ui/vendor/spectrum.css'
+          #mobileFrontend.registerAssetFile 'js', 'pimatic-tado-reloaded/ui/vendor/async.js'
+        else
+          env.logger.warn 'your plugin could not find the mobile-frontend. No gui will be available'
 
       @framework.deviceManager.on 'discover', () =>
         #climate devices
@@ -124,56 +136,193 @@ module.exports = (env) ->
 
   plugin = new TadoPlugin
 
-  class TadoClimate extends env.devices.TemperatureSensor
-    _temperature: null
-    _humidity: null
+  class TadoThermostat extends env.devices.TemperatureSensor
 
-    attributes:
-      temperature:
-        description: "The measured temperature"
-        type: "number"
-        unit: '°C'
-        acronym: "room temp"
-      humidity:
-        description: "The actual degree of Humidity"
-        type: "number"
-        unit: '%'
-        acronym: "room hum"
-      setPoint:
-        description: "The setPoint temperature"
-        type: "number"
-        unit: '°C'
-        acronym: "set temp"
-      mode:
-        description: "The thermostat mode"
-        type: "boolean"
-        unit: ''
-        acronym: "mode"
-        labels: ["AUTO","MANUAL"]
-      power:
-        description: "The power state"
-        type: "boolean"
-        unit: ''
-        acronym: "power"
-        labels: ["ON","OFF"]
+    template: "tadothermostat"
+    actions:
+      changePowerTo:
+        params:
+          power:
+            type: "boolean"
+      toggleEco:
+        description: "Eco button toggle"
+      changeModeTo:
+        params:
+          mode:
+            type: "string"
+      changeTemperatureTo:
+        params:
+          temperatureSetpoint:
+            type: "number"
+      changeTemperatureLowTo:
+        params:
+          temperatureSetpoint:
+            type: "number"
+      changeTemperatureHighTo:
+        params:
+          temperatureSetpoint:
+            type: "number"
+      changeProgramTo:
+        params:
+          program:
+            type: "string"
+      changeTemperatureRoomTo:
+        params:
+          temperature:
+            type: "number"
+      changeHumidityRoomTo:
+        params:
+          humidity:
+            type: "number"
+      changeTemperatureOutdoorTo:
+        params:
+          temperature:
+            type: "number"
+      changeHumidityOutdoorTo:
+        params:
+          humidity:
+            type: "number"
 
-    constructor: (@config, lastState,@framework) ->
-      @name = @config.name
+    constructor: (@config, lastState, @framework) ->
       @id = @config.id
-      @zone = @config.zone
-      @_temperature = lastState?.temperature?.value
-      @_humidity = lastState?.humidity?.value
-      @_setPoint = lastState?.setPoint?.value
-      @_mode = lastState?.mode?.value ? "AUTO"
-      @_power = lastState?.power?.value
-      @_timestampTemp = null
-      @_timestampHum = null
-      @lastState = null
-      super()
+      @name = @config.name
       
+      @zone = @config.zone
+      @supportedModes = []
+      @supportedModes.push "heat" if @config.heating
+      @supportedModes.push "cool" if @config.cooling
+      @supportedModes.push "heatcool" if @config.heatcool
+
+      @_temperatureSetpoint = lastState?.temperatureSetpoint?.value or 20
+      @_temperatureSetpointLow = lastState?.temperatureSetpointLow?.value or 18
+      @_temperatureSetpointHigh = lastState?.temperatureSetpointHigh?.value or 22 # + @config.bufferRangeCelsius
+      @_mode = lastState?.mode?.value or "heat"
+      @_power = lastState?.power?.value or true
+      @_eco = lastState?.eco?.value or false
+      @_program = lastState?.program?.value or "auto"
+      @_temperatureRoom = lastState?.temperatureRoom?.value or 20
+      @_humidityRoom = lastState?.humidityRoom?.value or 50
+      @_temperatureOutdoor = lastState?.temperatureOutdoor?.value or 20
+      @_humidityOutdoor = lastState?.humidityOutdoor?.value or 50
+      @_timeToTemperatureSetpoint = lastState?.timeToTemperatureSetpoint?.value or 0
+      @_battery = lastState?.battery?.value or "ok"
+      @_synced = plugin.home?.id?
+      @_active = false
+      @_heater = lastState?.heater?.value or false
+      @_cooler = lastState?.cooler?.value or false
+      #@temperatureRoomSensor = false
+      #@humidityRoomSensor = false
+      #@temperatureOutdoorSensor = false
+      #@humidityOutdoorSensor = false
+      @minThresholdCelsius = @config.minThresholdCelsius ? 5
+      @maxThresholdCelsius = @config.maxThresholdCelsius ? 30
+
+
+      @attributes =
+        temperatureSetpoint:
+          description: "The temp that should be set"
+          type: "number"
+          label: "Temperature Setpoint"
+          unit: "°C"
+          hidden: true
+        temperatureSetpointLow:
+          description: "The tempersture low that should be set in heatcool mode"
+          type: "number"
+          label: "Temperature SetpointLow"
+          unit: "°C"
+          hidden: true
+        temperatureSetpointHigh:
+          description: "The tempersture high that should be set in heatcool mode"
+          type: "number"
+          label: "Temperature SetpointHigh"
+          unit: "°C"
+          hidden: true
+        power:
+          description: "The power mode"
+          type: "boolean"
+          hidden: true
+        eco:
+          description: "The eco mode"
+          type: "boolean"
+          hidden: true
+        mode:
+          description: "The current mode"
+          type: "string"
+          enum: ["heat", "heatcool", "cool"]
+          default: ["heat"]
+          hidden: true
+        program:
+          description: "The program mode"
+          type: "string"
+          enum: ["manual", "auto"]
+          default: ["manual"]
+          hidden: true
+        active:
+          description: "If heating or cooling is active"
+          type: "boolean"
+          labels: ["active","ready"]
+          acronym: "status"
+          hidden: true
+        heater:
+          description: "If heater is enabled"
+          type: "boolean"
+          labels: ["on","off"]
+          acronym: "heater"
+          hidden: true
+        cooler:
+          description: "If cooler is enabled"
+          type: "boolean"
+          labels: ["on","off"]
+          acronym: "cooler"
+          hidden: true
+        timeToTemperatureSetpoint:
+          description: "The time to reach the temperature setpoint"
+          type: "number"
+          unit: "sec"
+          acronym: "time to setpoint"
+          hidden: true
+        temperatureRoom:
+          description: "The room temperature of the thermostat"
+          type: "number"
+          acronym: "T"
+          unit: "°C"
+          hidden: true
+        humidityRoom:
+          description: "The room humidity of the thermostat"
+          type: "number"
+          acronym: "H"
+          unit: "%"
+          hidden: true
+        temperatureOutdoor:
+          description: "The outdoor temperature of the thermostat"
+          type: "number"
+          acronym: "TO"
+          unit: "°C"
+          hidden: true
+        humidityOutdoor:
+          description: "The outdoor humidity of the thermostat"
+          type: "number"
+          acronym: "HO"
+          unit: "%"
+          hidden: true
+        battery:
+          description: "Battery status"
+          type: "string"
+          #enum: ["ok", "low"]
+          hidden: true
+        synced:
+          description: "Pimatic and tado thermostat are synced"
+          type: "boolean"
+          acronym: "thermostat"
+          labels: ["connected","not connected"]
+
       @requestClimate()
       @requestClimateIntervalId =
         setInterval( ( => @requestClimate() ), @config.interval)
+
+      super()
+
+    getTemplateName: -> "tadothermostat"
 
     requestClimate: ->
       env.logger.debug "Start requestClimate " + plugin.loginPromise  #+ ", home.id: " + plugin.home.id
@@ -186,27 +335,7 @@ module.exports = (env) ->
           #env.logger.debug "debug: " + plugin.config.debug + ", state received: "+ JSON.stringify(state,null,2)        
           if plugin.config.debug
             env.logger.debug("state debug received: #{JSON.stringify(state)}")
-          if state.sensorDataPoints.insideTemperature.timestamp != @_timestampTemp
-            @_temperature = state.sensorDataPoints.insideTemperature.celsius
-            @emit "temperature", @_temperature
-          if state.sensorDataPoints.humidity.timestamp != @_timestampHum
-            @_humidity = state.sensorDataPoints.humidity.percentage
-            @emit "humidity", @_humidity
-          if state.setting.power?
-            if state.setting.power is "ON"
-              @_power = true
-            else 
-              @_power = false
-            @emit "power", @_power
-          if state.setting.temperature?.celsius?
-            @_setPoint = state.setting.temperature.celsius
-            @emit "setPoint", @_setPoint
-          if state.overlay? and state.overlayType is "MANUAL" 
-            @_mode = false
-            @emit "mode", @_mode
-          else
-            @_mode = true
-            @emit "mode", @_mode
+          @handleState(state)
           Promise.resolve(state)
         .catch (err) =>
           env.logger.error(err.error_description || (err.code || err) )
@@ -214,117 +343,353 @@ module.exports = (env) ->
             env.logger.debug("homeId=:" + plugin.home.id)
           Promise.reject(err)
 
+    handleState:(state)=>
+      if state.sensorDataPoints?.insideTemperature?
+        @_setTemperatureRoom(state.sensorDataPoints.insideTemperature.celsius)
+      if state.sensorDataPoints?.humidity?
+        @_setHumidityRoom(state.sensorDataPoints.humidity.percentage)
+      if state.setting.temperature?.celsius?
+        @_setSetpoint(state.setting.temperature.celsius)
+      if state.setting.power?
+        if state.setting.power is "ON"
+          @_setPower(true)
+        else 
+          @_setPower(false)
+      if state.overlay? and state.overlayType is "MANUAL"
+        @_setProgram('manual')
+      else
+        @_setProgram('auto')
+
+    getMode: () -> Promise.resolve(@_mode)
+    getPower: () -> Promise.resolve(@_power)
+    getEco: () -> Promise.resolve(@_eco)
+    getProgram: () -> Promise.resolve(@_program)
+    getTemperatureSetpoint: () -> Promise.resolve(@_temperatureSetpoint)
+    getTemperatureSetpointLow: () -> Promise.resolve(@_temperatureSetpointLow)
+    getTemperatureSetpointHigh: () -> Promise.resolve(@_temperatureSetpointHigh)
+    getActive: () -> Promise.resolve(@_active)
+    getHeater: () -> Promise.resolve(@_heater)
+    getCooler: () -> Promise.resolve(@_cooler)
+    getTemperatureRoom: () -> Promise.resolve(@_temperatureRoom)
+    getHumidityRoom: () -> Promise.resolve(@_humidityRoom)
+    getTemperatureOutdoor: () -> Promise.resolve(@_temperatureOutdoor)
+    getHumidityOutdoor: () -> Promise.resolve(@_humidityOutdoor)
+    getTimeToTemperatureSetpoint: () -> Promise.resolve(@_timeToTemperatureSetpoint)
+    getBattery: () -> Promise.resolve(@_battery)
+    getSynced: () -> Promise.resolve(@_synced)
+
     powerTxt:(power)=>
       if power then return "ON" else return "OFF"
            
-    setTemperature: (temperature) =>
-      return new Promise((resolve,reject) =>
-        env.logger.debug "Setting temperature setPoint set to #{temperature}"
-        plugin.client.setState(plugin.home.id, @zone, @powerTxt(@_power), temperature)
-        .then((res)=>
-          env.logger.debug "Temperature set: " + JSON.stringify(res,null,2) if res?
-          @_temperature = temperature
-          @emit "setPoint", temperature
-          @_mode = "MANUAL"
-          @emit "mode", @_mode
-          resolve()
-        ).catch((err)=>
-          env.logger.debug "error setPower: " + JSON.stringify(err,null,2)
-        )
-      )
+    upperCaseFirst = (string) ->
+      unless string.length is 0
+        string[0].toUpperCase() + string.slice(1)
+      else ""
 
-    setPower: (power) =>
-      return new Promise((resolve,reject) =>
-        env.logger.debug "Setting power to #{power}"
-        plugin.client.setState(plugin.home.id, @zone, @powerTxt(power), @_setPoint)
+    _setMode: (mode) ->
+      if mode is @_mode then return
+      @_mode = mode
+      @emit "mode", @_mode
+
+    _setPower: (power) ->
+      if power is @_power then return
+      @_power = power
+      @handleTemperatureChange()
+      @emit "power", @_power
+
+    _setEco: (eco) ->
+      if eco is @_eco then return
+      @_eco = eco
+      @emit "eco", @_eco
+
+    _setProgram: (program) ->
+      if program is @_program then return
+      @_program = program
+      @emit "program", @_program
+
+    _setSynced: (synced) ->
+      if synced is @_synced then return
+      @_synced = synced
+      @emit "synced", @_synced
+
+    _setSetpoint: (temperatureSetpoint) ->
+      if temperatureSetpoint is @_temperatureSetpoint then return
+      @_temperatureSetpoint = temperatureSetpoint
+      @emit "temperatureSetpoint", @_temperatureSetpoint
+
+    _setSetpointLow: (temperatureSetpoint) ->
+      if temperatureSetpoint is @_temperatureSetpointLow then return
+      @_temperatureSetpointLow = temperatureSetpoint
+      @emit "temperatureSetpointLow", @_temperatureSetpointLow
+
+    _setSetpointHigh: (temperatureSetpoint) ->
+      if temperatureSetpoint is @_temperatureSetpointHigh then return
+      @_temperatureSetpointHigh = temperatureSetpoint
+      @emit "temperatureSetpointHigh", @_temperatureSetpointHigh
+
+    _setHeater: (heater) ->
+      if heater is @_heater then return
+      @_heater = heater
+      @emit "heater", @_heater
+
+    _setCooler: (cooler) ->
+      if cooler is @_cooler then return
+      @_cooler = cooler
+      @emit "cooler", @_cooler
+
+    _setBattery: (battery) ->
+      if battery is @_battery then return
+      @_battery = battery
+      @emit "battery", @_battery
+
+    _setActive: (active) ->
+      #if active is @_active then return
+      @_active = active
+      @emit "active", @_active
+
+    _setTimeToTemperatureSetpoint: (time) ->
+      if time is @_timeToTemperatureSetpoint then return
+      @_timeToTemperatureSetpoint = time
+      @emit "timeToTemperatureSetpoint", @_timeToTemperatureSetpoint
+
+    _setTemperatureRoom: (temperatureRoom) ->
+      if temperatureRoom is @_temperatureRoom then return
+      @_temperatureRoom = temperatureRoom
+      @emit "temperatureRoom", @_temperatureRoom
+
+    _setHumidityRoom: (humidityRoom) ->
+      if humidityRoom is @_humidityRoom then return
+      @_humidityRoom = humidityRoom
+      @emit "humidityRoom", @_humidityRoom
+
+    _setTemperatureOutdoor: (temperatureOutdoor) ->
+      if temperatureOutdoor is @_temperatureOutdoor then return
+      @_temperatureOutdoor = temperatureOutdoor
+      @emit "temperatureOutdoor", @_temperatureOutdoor
+
+    _setHumidityOutdoor: (humidityOutdoor) ->
+      if humidityOutdoor is @_humidityOutdoor then return
+      @_humidityOutdoor = humidityOutdoor
+      @emit "humidityOutdoor", @_humidityOutdoor
+
+    changeModeTo: (mode) ->
+      if mode in @supportedModes
+        @_setMode(mode)
+      else
+        env.logger.info "Mode '#{mode}' is not supported"
+      return Promise.resolve()
+
+    changeProgramTo: (program) ->
+      if plugin.home?.id?
+        @_setProgram(program)
+        switch program
+          when "auto"
+            plugin.client.setAuto(plugin.home.id, @zone)
+            .then((res)=>
+              env.logger.debug "Result plugin.client.setAuto: " + JSON.stringify(res,null,2) if res?
+              @handleState(res)
+              resolve()
+            ).catch((err)=>
+              env.logger.debug "error setPower: " + JSON.stringify(err,null,2)
+            )
+          when "manual"
+            #setting temperature to current value, disables auto mode and starts manual mode
+            @getTemperatureSetpoint()
+            .then (temperature)=>
+              @changeTemperatureTo(temperature)
+      else
+        env.logger.info "Home not ready!"
+      return Promise.resolve()
+
+    changePowerTo: (power) ->
+      if plugin.home?.id?
+        @_setPower(power)
+        plugin.client.setState(plugin.home.id, @zone, @powerTxt(power), @_temperatureSetpoint)
         .then((res)=>
           env.logger.debug "Result plugin.client.setPower: " + JSON.stringify(res,null,2) if res?
-          @_power = power
-          @emit "power", power
+          @handleState(res)
           resolve()
         ).catch((err)=>
           env.logger.debug "error setPower: " + JSON.stringify(err,null,2)
         )
-      )
+      else
+        env.logger.info "Home not ready!"
+      return Promise.resolve()
 
-    setAuto: () =>
-      return new Promise((resolve,reject) =>
-        env.logger.debug "Setting mode to AUTO"
-        plugin.client.setAuto(plugin.home.id, @zone)
-        .then((res)=>
-          env.logger.debug "Result plugin.client.setAuto: " + JSON.stringify(res,null,2) if res?
-          @_mode = false
-          @emit "mode", @_mode
-          resolve()
-        ).catch((err)=>
-          env.logger.debug "error setPower: " + JSON.stringify(err,null,2)
-        )
-      )
+    toggleEco: () ->
+      if plugin.home?.id?
+        @_setEco(!@_eco)
+      else
+        env.logger.info "Home not ready!"
+      return Promise.resolve()
 
-    getTemperature: -> Promise.resolve(@_temperature)
-    getHumidity: -> Promise.resolve(@_humidity)
-    getSetPoint: -> Promise.resolve(@_setPoint)
-    getMode: -> Promise.resolve(@_mode)
-    getPower: -> Promise.resolve(@_power)
+    changeEcoTo: (eco) ->
+      if plugin.home?.id?
+        @_setEco(eco)
+      else
+        env.logger.info "Home not ready!"
+      return Promise.resolve()
 
-    execute: (command, value) =>
-      return new Promise((resolve,reject) =>
-        switch command
-          when "mode"
-            #switch Tado device on with current temp setting
-            if value is "auto"
-              @setAuto()
-              .then(()->
-                env.logger.debug "Mode set to AUTO"
-                resolve()
-                return
-              ).catch((err)=>
-                env.logger.debug "Failed to setMode to AUTO: " + JSON.stringify(err,null,2)
-                reject()
-              )
-            else
-              env.logger.debug "Mode #{value} not implemented"
-              reject()
-          when "power"
-            #switch Tado device on with current temp setting
-            @setPower(value)
-            .then(()->
-              env.logger.debug "Power set to #{_power}"
-              resolve()
-              return
-            ).catch((err)=>
-              env.logger.debug "Failed to setPower to #{value}: " + JSON.stringify(err,null,2)
-              reject()
-            )
-          when "temperature"
-            if value?
-              # check if value(setPoint) is number and is in valid range
-              if Number.isNaN(Number value)
-                env.logger.debug "setpoint #{value} is not a number"
-                reject()
-              else
-                _setPoint = Number value
-                if _setPoint >= 15 and _setPoint <= 25
-                  #set overlay to manual mode with new temprature
-                  @setTemperature(_setPoint)
-                  .then(()=>
-                    env.logger.debug "Temperature setPoint set to #{temperature}"
-                    resolve()
-                    return
-                  ).catch((err)=>
-                    env.logger.debug "Failed setting temperature: " + JSON.stringify(err,null,2)
-                    reject()
-                  )
+    changeActiveTo: (active) ->
+      @_setActive(active)
+      return Promise.resolve()
+
+    changeHeaterTo: (heater) ->
+      @_setHeater(heater)
+      @_setActive(heater)
+      return Promise.resolve()
+    changeCoolerTo: (cooler) ->
+      @_setCooler(cooler)
+      @_setActive(cooler)
+      return Promise.resolve()
+
+    changeTimeToTemperatureSetpointTo: (time) ->
+      @_setTimeToTemperatureSetpoint(time)
+      return Promise.resolve()
+
+    changeTemperatureRoomTo: (temperatureRoom) ->
+      @_setTemperatureRoom(temperatureRoom)
+      @handleTemperatureChange()
+      return Promise.resolve()
+
+    changeHumidityRoomTo: (humidityRoom) ->
+      @_setHumidityRoom(humidityRoom)
+      return Promise.resolve()
+
+    changeTemperatureOutdoorTo: (temperatureOutdoor) ->
+      @_setTemperatureOutdoor(temperatureOutdoor)
+      @handleTemperatureChange()
+      return Promise.resolve()
+
+    changeHumidityOutdoorTo: (humidityOutdoor) ->
+      @_setHumidityOutdoor(humidityOutdoor)
+      return Promise.resolve()
+
+    changeTemperatureTo: (_temperatureSetpoint) ->
+      if plugin.home?.id?
+        temperatureSetpoint = Math.round(10*_temperatureSetpoint)/10
+        if temperatureSetpoint >= @minThresholdCelsius and temperatureSetpoint <= @maxThresholdCelsius
+          plugin.client.setState(plugin.home.id, @zone, @powerTxt(@_power), temperatureSetpoint)
+          .then((res)=>
+            env.logger.debug "Temperature set: " + JSON.stringify(res,null,2) if res?
+            @_setSetpoint(temperatureSetpoint)
+            @handleState(res)
+          ).catch((err)=>
+            env.logger.debug "error setTemperature: " + JSON.stringify(err,null,2)
+          )
+        else
+          env.logger.info "SetPoint '#{temperatureSetpoint}' is out of range: #{@minThresholdCelsius}-#{@maxThresholdCelsius}"
+      else
+        env.logger.info "Home not ready!"
+      return Promise.resolve()
+
+    changeTemperatureLowTo: (_temperatureSetpoint) ->
+      temperatureSetpoint = Math.round(10*_temperatureSetpoint)/10
+      @getMode()
+      .then (mode)=>
+        if mode is "heatcool"
+          @_setSetpointLow(temperatureSetpoint)
+          @handleTemperatureChange()
+        else
+          env.logger.info "SetpointLow can only be set in 'heatcool' mode!"
+      return Promise.resolve()
+
+    changeTemperatureHighTo: (_temperatureSetpoint) ->
+      temperatureSetpoint = Math.round(10*_temperatureSetpoint)/10
+      @getMode()
+      .then (mode)=>
+        if mode is "heatcool"
+          @_setSetpointHigh(temperatureSetpoint)
+          @handleTemperatureChange()
+        else
+          env.logger.info "SetpointHigh can only be set in 'heatcool' mode!"
+      return Promise.resolve()
+
+    handleTemperatureChange: () =>
+      # check if pid -> enable pid
+      return
+      ###
+      @getPower()
+      .then((power)=>
+        if power
+          @getMode()
+          .then((mode)=>
+            switch mode
+              when "heat"
+                @changeCoolerTo(off)
+                if @_temperatureSetpoint > @_temperatureRoom
+                  @changeHeaterTo(on)
                 else
-                  env.logger.debug "setpoint #{_setPoint} is not within a valid range (15-25)"
-                  reject()                  
+                  @changeHeaterTo(off)
+              when "cool"
+                @changeHeaterTo(off)
+                if @_temperatureSetpoint < @_temperatureRoom
+                  @changeCoolerTo(on)
+                else
+                  @changeCoolerTo(off)
+              when "heatcool"
+                if @_temperatureSetpointLow > @_temperatureRoom
+                  @changeHeaterTo(on)
+                else
+                  @changeHeaterTo(off)
+                if @_temperatureSetpointHigh < @_temperatureRoom
+                  @changeCoolerTo(on)
+                else
+                  @changeCoolerTo(off)
+        )
+        else
+          @changeHeaterTo(off)
+          @changeCoolerTo(off)
+      )
+      ###
+
+    execute: (device, command, options) =>
+      env.logger.debug "Execute command: #{command} with options: " + JSON.stringify(options,null,2)
+      return new Promise((resolve, reject) =>
+        unless device?
+          env.logger.info "Device '#{@name}' is unknown"
+          return reject()
+        switch command
+          when "heat"
+            @changeModeTo("heat")
+          when "heatcool"
+            @changeModeTo("heatcool")
+          when "cool"
+            @changeModeTo("cool")
+          when "eco"
+            @changeEcoTo(true)
+          when "off"
+            @changePowerTo(false)
+          when "on"
+            @changePowerTo(true)
+          when "setpoint"
+            if options.variable
+              _setpoint = @framework.variableManager.getVariableValue(options.setpoint.replace("$",""))
+            else
+              _setpoint = options.setpoint
+            @changeTemperatureTo(_setpoint)
+          when "setpointlow"
+            if options.variable
+              _setpointLow = @framework.variableManager.getVariableValue(options.setpointLow.replace("$",""))
+            else
+              _setpointLow = options.setpointLow
+            @changeTemperatureLowTo(_setpointLow)
+          when "setpointhigh"
+            if options.variable
+              _setpointHigh = @framework.variableManager.getVariableValue(options.setpointHigh.replace("$",""))
+            else
+              _setpointHigh = options.setpointHigh
+            @changeTemperatureHighTo(options.setpointHigh)
+          when "manual"
+            @changeProgramTo("manual")
+          when "auto"
+            @changeProgramTo("auto")
           else
-            env.logger.debug "Unknown command: #{command}"
+            env.logger.debug "Unknown command received: " + command
             reject()
-        resolve()
       )
 
-    destroy: () ->
+    destroy: ->
       clearInterval @requestClimateIntervalId if @requestClimateIntervalId?
       super()
 
@@ -385,114 +750,185 @@ module.exports = (env) ->
     getPresence: -> Promise.resolve(@_presence)
     getRelativeDistance: -> Promise.resolve(@_relativeDistance)
 
+
   class TadoActionProvider extends env.actions.ActionProvider
 
     constructor: (@framework) ->
 
     parseAction: (input, context) =>
 
-      tadoDevice = null
-      @value = null
-      @valueStringVar = null
+      @tadoThermostatDevice = null
 
-      tadoDevices = _(@framework.deviceManager.devices).values().filter(
-        (device) => device.config.class == "TadoClimate"
+      @command = ""
+
+      @parameters = {}
+
+      tadoThermostatDevices = _(@framework.deviceManager.devices).values().filter(
+        (device) => device.config.class == "TadoThermostat"
       ).value()
 
-      setCommand = (command) =>
-        @command = command
+      setCommand = (_command) =>
+        @command = _command
 
-      setTemp = (m,tokens) =>
-        unless tokens>=15 and tokens<=25
-          context?.addError("Temperature must be >=15°C and <=25°C")
+      setpoint = (m,tokens) =>
+        unless tokens >= @tadoThermostatDevice.config.minThresholdCelsius and tokens <= @tadoThermostatDevice.config.maxThresholdCelsius
+          context?.addError("Setpoint must be between #{@tadoThermostatDevice.config.minThresholdCelsius} and #{@tadoThermostatDevice.config.maxThresholdCelsius}")
           return
-        setCommand("temperature")
-        @value = Number tokens
+        setCommand("setpoint")
+        @parameters["setpoint"] = Number tokens
+        @parameters["variable"] = false
+      setpointVar = (m,tokens) =>
+        setCommand("setpoint")
+        @parameters["setpoint"] = tokens
+        @parameters["variable"] = true
 
-      tempString = (m,tokens) =>
-        unless tokens?
-          context?.addError("No variable")
+      setpointLow = (m,tokens) =>
+        unless tokens >= @tadoThermostatDevice.config.minThresholdCelsius and tokens <= @tadoThermostatDevice.config.maxThresholdCelsius
+          context?.addError("Setpoint must be between #{@tadoThermostatDevice.config.minThresholdCelsius} and #{@tadoThermostatDevice.config.maxThresholdCelsius}")
           return
-        @valueStringVar = tokens
-        setCommand("temperature")
-        return
+        setCommand("setpointlow")
+        @parameters["setpointLow"] = Number tokens
+      setpointLowVar = (m,tokens) =>
+        setCommand("setpointlow")
+        @parameters["setpointLow"] = tokens
+        @parameters["variable"] = true
+
+      setpointHigh = (m,tokens) =>
+        unless tokens >= @tadoThermostatDevice.config.minThresholdCelsius and tokens <= @tadoThermostatDevice.config.maxThresholdCelsius
+          context?.addError("Setpoint must be between #{@tadoThermostatDevice.config.minThresholdCelsius} and #{@tadoThermostatDevice.config.maxThresholdCelsius}")
+          return
+        setCommand("setpointhigh")
+        @parameters["setpointHigh"] = Number tokens
+      setpointHighVar = (m,tokens) =>
+        setCommand("setpointhigh")
+        @parameters["setpointHigh"] = tokens
+        @parameters["variable"] = true
 
       m = M(input, context)
         .match('tado ')
-        .matchDevice(tadoDevices, (m, d) ->
+        .matchDevice(tadoThermostatDevices, (m, d) =>
           # Already had a match with another device?
-          if tadoDevice? and tadoDevice.id isnt d.id
+          if tadoThermostatDevice? and tadoThermostatDevice.config.id isnt d.config.id
             context?.addError(""""#{input.trim()}" is ambiguous.""")
             return
-          tadoDevice = d
+          @tadoThermostatDevice = d
         )
         .or([
           ((m) =>
-            return m.match(' on', (m) =>
-              setCommand('power')
-              @value = true
+            return m.match(' heat', (m)=>
+              setCommand('heat')
               match = m.getFullMatch()
             )
           ),
           ((m) =>
-            return m.match(' off', (m) =>
-              setCommand('power')
-              @value = false
+            return m.match(' heatcool', (m)=>
+              setCommand('heatcool')
               match = m.getFullMatch()
             )
           ),
           ((m) =>
-            return m.match(' auto', (m) =>
-              setCommand('mode')
-              @value = 'auto'
+            return m.match(' cool', (m)=>
+              setCommand('cool')
               match = m.getFullMatch()
             )
           ),
           ((m) =>
-            return m.match(' set ')
+            return m.match(' eco', (m)=>
+              setCommand('eco')
+              match = m.getFullMatch()
+            )
+          ),
+          ((m) =>
+            return m.match(' off', (m)=>
+              setCommand('off')
+              match = m.getFullMatch()
+            )
+          ),
+          ((m) =>
+            return m.match(' on', (m)=>
+              setCommand('on')
+              match = m.getFullMatch()
+            )
+          )
+          ((m) =>
+            return m.match(' setpoint ')
               .or([
                 ((m) =>
-                  return m.matchNumber(setTemp)
+                  m.matchNumber(setpoint)
                 ),
                 ((m) =>
-                  return m.matchVariable(tempString)
+                  m.matchVariable(setpointVar)
+                )
+              ])
+          ),
+          ((m) =>
+            return m.match(' setpoint low ')
+              .or([
+                ((m) =>
+                  m.matchNumber(setpointLow)
+                ),
+                ((m) =>
+                  m.matchVariable(setpointLowVar)
+                )
+              ])
+          ),
+          ((m) =>
+            return m.match(' setpoint high ')
+              .or([
+                ((m) =>
+                  m.matchNumber(setpointHigh)
+                ),
+                ((m) =>
+                  m.matchVariable(setpointHighVar)
+                )
+              ])
+          ),
+          ((m) =>
+            return m.match(' program ')
+              .or([
+                ((m) =>
+                  return m.match(' manual', (m)=>
+                    setCommand('manual')
+                    match = m.getFullMatch()
+                  )
+                ),
+                ((m) =>
+                  return m.match(' auto', (m)=>
+                    setCommand('auto')
+                    match = m.getFullMatch()
+                  )
                 )
               ])
           )
         ])
 
       match = m.getFullMatch()
-      if match? #m.hadMatch()
+      if match?
         env.logger.debug "Rule matched: '", match, "' and passed to Action handler"
         return {
           token: match
           nextInput: input.substring(match.length)
-          actionHandler: new TadoActionHandler(@framework, tadoDevice, @command, @value, @valueStringVar)
+          actionHandler: new TadoThermostatActionHandler(@framework, @tadoThermostatDevice, @command, @parameters)
         }
       else
         return null
 
+  class TadoThermostatActionHandler extends env.actions.ActionHandler
 
-  class TadoActionHandler extends env.actions.ActionHandler
-
-    constructor: (@framework, @tadoDevice, @command, @value, @valueStringVar) ->
+    constructor: (@framework, @tadoThermostatDevice, @command, @parameters) ->
 
     executeAction: (simulate) =>
       if simulate
-        return __("would have controlled tado \"%s\"", "")
+        return __("would have cleaned \"%s\"", "")
       else
-        if @valueStringVar?
-          _var = @valueStringVar.slice(1) if @valueStringVar.indexOf('$') >= 0
-          _value = @framework.variableManager.getVariableValue(_var)
-        else
-          _value = @value
-
-        @tadoDevice.execute(@command, _value)
+        @tadoThermostatDevice.execute(@tadoThermostatDevice, @command, @parameters)
         .then(()=>
           return __("\"%s\" Rule executed", @command)
         ).catch((err)=>
-          return __("\"%s\" Rule not executed", "")
+          return __("\"%s\" Rule not executed", JSON.stringify(err))
         )
+
+
 
 
   return plugin
