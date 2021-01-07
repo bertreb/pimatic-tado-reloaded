@@ -33,6 +33,10 @@ module.exports = {
         description: "supported maximum temperature range for this device (in degrees Celsius)"
         type: "number"
         default: 30
+      deviceId:
+        description: "Tado id of the mobile device"
+        type: "integer"
+        default: 1
     }
   TadoPresence: {
     title: "TadoPresence config options"

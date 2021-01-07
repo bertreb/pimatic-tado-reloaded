@@ -144,28 +144,14 @@ module.exports = (env) ->
         params:
           power:
             type: "boolean"
-      toggleEco:
-        description: "Eco button toggle"
-      changeModeTo:
+      changeProgramTo:
         params:
-          mode:
+          program:
             type: "string"
       changeTemperatureTo:
         params:
           temperatureSetpoint:
             type: "number"
-      changeTemperatureLowTo:
-        params:
-          temperatureSetpoint:
-            type: "number"
-      changeTemperatureHighTo:
-        params:
-          temperatureSetpoint:
-            type: "number"
-      changeProgramTo:
-        params:
-          program:
-            type: "string"
       changeTemperatureRoomTo:
         params:
           temperature:
@@ -190,26 +176,24 @@ module.exports = (env) ->
       @zone = @config.zone
       @supportedModes = []
       @supportedModes.push "heat" if @config.heating
-      @supportedModes.push "cool" if @config.cooling
-      @supportedModes.push "heatcool" if @config.heatcool
 
       @_temperatureSetpoint = lastState?.temperatureSetpoint?.value or 20
-      @_temperatureSetpointLow = lastState?.temperatureSetpointLow?.value or 18
-      @_temperatureSetpointHigh = lastState?.temperatureSetpointHigh?.value or 22 # + @config.bufferRangeCelsius
       @_mode = lastState?.mode?.value or "heat"
       @_power = lastState?.power?.value or true
-      @_eco = lastState?.eco?.value or false
+      @_presence = lastState?.presence?.value or "home"
+      @_relativeDistance = lastState?.relativeDistance?.value
+      #@_eco = lastState?.eco?.value or false
       @_program = lastState?.program?.value or "auto"
       @_temperatureRoom = lastState?.temperatureRoom?.value or 20
       @_humidityRoom = lastState?.humidityRoom?.value or 50
-      @_temperatureOutdoor = lastState?.temperatureOutdoor?.value or 20
-      @_humidityOutdoor = lastState?.humidityOutdoor?.value or 50
-      @_timeToTemperatureSetpoint = lastState?.timeToTemperatureSetpoint?.value or 0
-      @_battery = lastState?.battery?.value or "ok"
+      #@_temperatureOutdoor = lastState?.temperatureOutdoor?.value or 20
+      #@_humidityOutdoor = lastState?.humidityOutdoor?.value or 50
+      #@_timeToTemperatureSetpoint = lastState?.timeToTemperatureSetpoint?.value or 0
+      #@_battery = lastState?.battery?.value or "ok"
       @_synced = plugin.home?.id?
       @_active = false
-      @_heater = lastState?.heater?.value or false
-      @_cooler = lastState?.cooler?.value or false
+      #@_heater = lastState?.heater?.value or false
+      #@_cooler = lastState?.cooler?.value or false
       #@temperatureRoomSensor = false
       #@humidityRoomSensor = false
       #@temperatureOutdoorSensor = false
@@ -219,37 +203,27 @@ module.exports = (env) ->
 
 
       @attributes =
+        presence:
+          description: "Away or Home presence"
+          type: "string"
+          label: "Presence"
+          unit: ""
+          hidden: true
+        relativeDistance:
+          description: "Relative distance of human/device from home"
+          type: "number"
+          acronym: "dist"
+          unit: '%'
+          hidden: true
         temperatureSetpoint:
           description: "The temp that should be set"
           type: "number"
           label: "Temperature Setpoint"
           unit: "°C"
           hidden: true
-        temperatureSetpointLow:
-          description: "The tempersture low that should be set in heatcool mode"
-          type: "number"
-          label: "Temperature SetpointLow"
-          unit: "°C"
-          hidden: true
-        temperatureSetpointHigh:
-          description: "The tempersture high that should be set in heatcool mode"
-          type: "number"
-          label: "Temperature SetpointHigh"
-          unit: "°C"
-          hidden: true
         power:
           description: "The power mode"
           type: "boolean"
-          hidden: true
-        eco:
-          description: "The eco mode"
-          type: "boolean"
-          hidden: true
-        mode:
-          description: "The current mode"
-          type: "string"
-          enum: ["heat", "heatcool", "cool"]
-          default: ["heat"]
           hidden: true
         program:
           description: "The program mode"
@@ -263,18 +237,6 @@ module.exports = (env) ->
           labels: ["active","ready"]
           acronym: "status"
           hidden: true
-        heater:
-          description: "If heater is enabled"
-          type: "boolean"
-          labels: ["on","off"]
-          acronym: "heater"
-          hidden: true
-        cooler:
-          description: "If cooler is enabled"
-          type: "boolean"
-          labels: ["on","off"]
-          acronym: "cooler"
-          hidden: true
         timeToTemperatureSetpoint:
           description: "The time to reach the temperature setpoint"
           type: "number"
@@ -286,25 +248,11 @@ module.exports = (env) ->
           type: "number"
           acronym: "T"
           unit: "°C"
-          hidden: true
         humidityRoom:
           description: "The room humidity of the thermostat"
           type: "number"
           acronym: "H"
           unit: "%"
-          hidden: true
-        temperatureOutdoor:
-          description: "The outdoor temperature of the thermostat"
-          type: "number"
-          acronym: "TO"
-          unit: "°C"
-          hidden: true
-        humidityOutdoor:
-          description: "The outdoor humidity of the thermostat"
-          type: "number"
-          acronym: "HO"
-          unit: "%"
-          hidden: true
         battery:
           description: "Battery status"
           type: "string"
@@ -318,7 +266,10 @@ module.exports = (env) ->
 
       @requestClimate()
       @requestClimateIntervalId =
-        setInterval( ( => @requestClimate() ), @config.interval)
+        setInterval( () => 
+          @requestClimate()
+          @requestPresence()
+        , @config.interval)
 
       super()
 
@@ -343,6 +294,28 @@ module.exports = (env) ->
             env.logger.debug("homeId=:" + plugin.home.id)
           Promise.reject(err)
 
+    requestPresence: ->
+      if plugin.loginPromise? and plugin.home?.id
+        plugin.loginPromise
+        .then (success) =>
+          return plugin.client.mobileDevices(plugin.home.id)
+        .then (mobileDevices) =>
+          if @config.debug
+            env.logger.debug("mobileDevices received: #{JSON.stringify(mobileDevices)}")
+          for mobileDevice in mobileDevices
+            if mobileDevice.id == @deviceId
+              @_presence =  mobileDevice.location.atHome
+              @_relativeDistance = (1-mobileDevice.location.relativeDistanceFromHomeFence) * 100
+              @emit "presence", @_presence
+              @emit "relativeDistance", @_relativeDistance
+          Promise.resolve(mobileDevices)
+        .catch (err) =>
+          env.logger.error(err.error_description || (err.code || err))
+          if @config.debug
+            env.logger.debug("homeId= #{plugin.home.id}")
+          Promise.reject(err)
+
+
     handleState:(state)=>
       if state.sensorDataPoints?.insideTemperature?
         @_setTemperatureRoom(state.sensorDataPoints.insideTemperature.celsius)
@@ -360,23 +333,25 @@ module.exports = (env) ->
       else
         @_setProgram('auto')
 
-    getMode: () -> Promise.resolve(@_mode)
+    #getMode: () -> Promise.resolve(@_mode)
     getPower: () -> Promise.resolve(@_power)
-    getEco: () -> Promise.resolve(@_eco)
+    #getEco: () -> Promise.resolve(@_eco)
     getProgram: () -> Promise.resolve(@_program)
     getTemperatureSetpoint: () -> Promise.resolve(@_temperatureSetpoint)
-    getTemperatureSetpointLow: () -> Promise.resolve(@_temperatureSetpointLow)
-    getTemperatureSetpointHigh: () -> Promise.resolve(@_temperatureSetpointHigh)
+    #getTemperatureSetpointLow: () -> Promise.resolve(@_temperatureSetpointLow)
+    #getTemperatureSetpointHigh: () -> Promise.resolve(@_temperatureSetpointHigh)
     getActive: () -> Promise.resolve(@_active)
-    getHeater: () -> Promise.resolve(@_heater)
-    getCooler: () -> Promise.resolve(@_cooler)
+    #getHeater: () -> Promise.resolve(@_heater)
+    #getCooler: () -> Promise.resolve(@_cooler)
     getTemperatureRoom: () -> Promise.resolve(@_temperatureRoom)
     getHumidityRoom: () -> Promise.resolve(@_humidityRoom)
-    getTemperatureOutdoor: () -> Promise.resolve(@_temperatureOutdoor)
-    getHumidityOutdoor: () -> Promise.resolve(@_humidityOutdoor)
+    #getTemperatureOutdoor: () -> Promise.resolve(@_temperatureOutdoor)
+    #getHumidityOutdoor: () -> Promise.resolve(@_humidityOutdoor)
     getTimeToTemperatureSetpoint: () -> Promise.resolve(@_timeToTemperatureSetpoint)
     getBattery: () -> Promise.resolve(@_battery)
     getSynced: () -> Promise.resolve(@_synced)
+    getPresence: () -> Promise.resolve @_presence
+    getRelativeDistance: () -> Promise.resolve @_relativeDistance
 
     powerTxt:(power)=>
       if power then return "ON" else return "OFF"
