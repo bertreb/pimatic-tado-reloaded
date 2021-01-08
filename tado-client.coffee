@@ -93,6 +93,7 @@ module.exports = (env) ->
               bearer: this.token.access_token
             body: data
           , (err, response, result) ->
+            #console.log("apiset response.statusCode "+JSON.stringify(response,null,2))
             if (err || response.statusCode != 200)
               reject(err || result)
             else

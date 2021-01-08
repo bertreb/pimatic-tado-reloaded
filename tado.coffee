@@ -364,18 +364,19 @@ module.exports = (env) ->
       if humidityRoom is @_humidityRoom then return
       @_humidityRoom = humidityRoom
       @emit "humidityRoom", @_humidityRoom
- 
+
     changeProgramTo: (program) ->
       if plugin.home?.id?
-        @_setProgram(program)
         _program = program.toLowerCase()
+        @_setPower(on)
+        @_setSetpoint(@_temperatureSetpoint)
         switch _program
           when "auto"
             plugin.client.setAuto(plugin.home.id, @zone)
-            .then((res)=>
-              env.logger.debug "Result plugin.client.setAuto: " + JSON.stringify(res,null,2) if res?
-              #@handleState(res) #setAuto gives no result
-              Promise.resolve()
+            .then(()=>
+              @_setProgram(program)
+              clearTimeout @requestClimateTimer if @requestClimateTimer?
+              @requestClimate()
             ).catch((err)=>
               env.logger.debug "error changeProgram: " + JSON.stringify(err,null,2)
             )
@@ -390,23 +391,25 @@ module.exports = (env) ->
 
     changePowerTo: (power) ->
       if plugin.home?.id?
-        @_setPower(power)
-        data =
-          setting:
-            type: "HEATING"
-            power: @powerTxt(@_power)
-            temperature: 
-              celsius: @_temperatureSetpoint
-          termination:
-            type: "MANUAL"
-        plugin.client.setState(plugin.home.id, @zone, data) #@powerTxt(power), @_temperatureSetpoint)
-        .then((res)=>
-          env.logger.debug "Result plugin.client.setPower: " + JSON.stringify(res,null,2) if res?
-          @handleState(res)
-          resolve()
-        ).catch((err)=>
-          env.logger.debug "error setPower: " + JSON.stringify(err,null,2)
-        )
+        env.logger.debug "changePowerTo: " + power
+        if power
+          @changeProgramTo('auto') unless @_program is 'auto'
+        else
+          data =
+            setting:
+              type: "HEATING"
+              power: @powerTxt(off)
+              temperature: 
+                celsius: String @_temperatureSetpoint
+          env.logger.debug "Power #{power} " + JSON.stringify(data,null,2)
+          plugin.client.setState(plugin.home.id, @zone, data) #@powerTxt(power), @_temperatureSetpoint)
+          .then((res)=>
+            env.logger.debug "Result plugin.client.setPower: " + JSON.stringify(res,null,2) if res?
+            @handleState(res) if res?
+            @_setPower(power)
+          ).catch((err)=>
+            env.logger.debug "error setPower: " + JSON.stringify(err,null,2)
+          )
       else
         env.logger.info "Home not ready!"
       return Promise.resolve()
@@ -414,6 +417,8 @@ module.exports = (env) ->
 
     changeTemperatureTo: (_temperatureSetpoint) ->
       if plugin.home?.id?
+        @_setPower(on)
+        @_setProgram("manual")
         temperatureSetpoint = Math.round(10*_temperatureSetpoint)/10
         if temperatureSetpoint >= @minThresholdCelsius and temperatureSetpoint <= @maxThresholdCelsius
           data =
