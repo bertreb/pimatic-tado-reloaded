@@ -21,7 +21,7 @@ interval: "Interval in ms to interace with Tado web, minimum should be 120000 (2
   default: 120000
 toAutoTime: "Time in seconds to go back to auto, if mode is set to manual. If 0 timer is disabled"
   default: 0
-deviceId: "Tado id of the mobile device"
+deviceId: "Tado id of the mobile device. Configurable in the Tado mobile app"
 ```
 
 ### The available attributes
