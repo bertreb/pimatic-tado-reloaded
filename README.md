@@ -8,11 +8,9 @@ This plugin creates TadoThermostat devices to use within Pimatic. The TadoThermo
 
 TadoThermostat
 ----
-The TadoThermostat device is a thermostat device with a heat, heatcool and cool mode.
+The TadoThermostat device is a thermostat device for heating control.
 
 ![](/screens/tado-thermostat.png)
-
-The default mode is 'heat'. This is the mode for the most common used heating systems. The cool and heatcool modes are for airco type of climate control. In the device config you can enable/disable the modes, depending on your thermostat functionality.
 
 ### The device config
 ```
@@ -52,4 +50,3 @@ thermostat <TadoThermostat device>
 - manual : Set the current program to manual
 - auto : Set the current program to auto
 ```
-
