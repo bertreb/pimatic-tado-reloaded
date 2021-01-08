@@ -26,7 +26,7 @@ $(document).on 'templateinit', (event) ->
           @changeTemperatureTo(parseFloat(textValue))
       ).extend({ rateLimit: { timeout: 1000, method: "notifyWhenChangesStop" } })
 
-      @synced = @getAttribute('synced').value
+      @synced = @getAttribute('connected').value
 
     getItemTemplate: => 'tadothermostat'
 

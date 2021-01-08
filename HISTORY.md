@@ -13,3 +13,5 @@
 * 20210108, v.0.2.1
 	* initial testing and edit
 	* update readme
+* 20210108, v.0.2.2
+	* fix gui error
