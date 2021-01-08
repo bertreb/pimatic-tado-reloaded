@@ -44,73 +44,20 @@ $(document).on 'templateinit', (event) ->
       @input.spinbox()
 
       @updatePowerButtons()
-      #@updateEcoButton()
-      #@updateModeButtons()
       @updateProgramButtons()
-      #@updatePreTemperature()
       @updatePresenceButtons()
 
-      @getAttribute('mode')?.value.subscribe( => @updateModeButtons() )
       @getAttribute('power')?.value.subscribe( => @updatePowerButtons() )
       @getAttribute('program')?.value.subscribe( => @updateProgramButtons() )
       @getAttribute('presence')?.value.subscribe( => @updatePresenceButtons() )
-      #@getAttribute('eco')?.value.subscribe( => @updateEcoButton() )
-      #@stAttr.value.subscribe( => @updatePreTemperature() )
-      #@stAttrLow.value.subscribe( => @updatePreTemperature() )
-      #@stAttrHigh.value.subscribe( => @updatePreTemperature() )
       return
 
     # define the available actions for the template
-    #modeHeat: -> @changeModeTo "heat"
-    #modeHeatCool: -> @changeModeTo "heatcool"
-    #modeCool: -> @changeModeTo "cool"
     modeOff: -> @changePowerTo false
-    #modeEco: -> @changePowerTo "eco"
-    #modeEcoToggle: -> @toggleEco ""
     modeOn: -> @changePowerTo true
     modeManual: -> @changeProgramTo "manual"
     modeAuto: -> @changeProgramTo "auto"
     setTemp: -> @changeTemperatureTo "#{@inputValue.value()}"
-    #setTempLow: -> @changeTemperatureLowTo "#{@inputValue2.value()}"
-    #setTempHigh: -> @changeTemperatureHighTo "#{@inputValue3.value()}"
-
-    ###
-    updateModeButtons: =>
-      modeAttr = @getAttribute('mode')?.value()
-      switch modeAttr
-        when 'heat'
-          @heatButton.addClass('ui-btn-active')
-          @heatcoolButton.removeClass('ui-btn-active')
-          @coolButton.removeClass('ui-btn-active')
-          @input.spinbox('enable')
-          @input2.spinbox('disable')
-          @input3.spinbox('disable')
-        when 'heatcool'
-          @heatButton.removeClass('ui-btn-active')
-          @heatcoolButton.addClass('ui-btn-active')
-          @coolButton.removeClass('ui-btn-active')
-          @input.spinbox('disable')
-          @input2.spinbox('enable')
-          @input3.spinbox('enable')
-        when 'cool'
-          @heatButton.removeClass('ui-btn-active')
-          @heatcoolButton.removeClass('ui-btn-active')
-          @coolButton.addClass('ui-btn-active')
-          @input.spinbox('enable')
-          @input2.spinbox('disable')
-          @input3.spinbox('disable')
-      return
-    ###
-
-    ###
-    updateEcoButton: =>
-      ecoAttr = @getAttribute('eco')?.value()
-      if ecoAttr is true
-        @ecoButton.addClass('ui-btn-active')
-      else
-        @ecoButton.removeClass('ui-btn-active')
-      return
-    ###
 
     updatePresenceButtons: =>
       presenceAttr = @getAttribute('presence')?.value()
@@ -144,35 +91,11 @@ $(document).on 'templateinit', (event) ->
         @onButton.addClass('ui-btn-active')
       return
 
-    updatePreTemperature: ->
-      return
-      if parseFloat(@stAttr.value()) is parseFloat("#{@device.config.ecoTemp}")
-        @boostButton.removeClass('ui-btn-active')
-        @comfyButton.removeClass('ui-btn-active')
-      else if parseFloat(@stAttr.value()) is parseFloat("#{@device.config.comfyTemp}")
-        @boostButton.removeClass('ui-btn-active')
-        @comfyButton.addClass('ui-btn-active')
-      else
-        @comfyButton.removeClass('ui-btn-active')
-      return
-
-    changeModeTo: (mode) ->
-      @device.rest.changeModeTo({mode}, global: no)
-        .done(ajaxShowToast)
-        .fail(ajaxAlertFail)
-
     changePowerTo: (power) ->
       @device.rest.changePowerTo({power}, global: no)
         .done(ajaxShowToast)
         .fail(ajaxAlertFail)
 
-    ###
-    toggleEco: () ->
-      @device.rest.toggleEco({},global: no)
-        .done(ajaxShowToast)
-        .fail(ajaxAlertFail)
-
-    ###
     changeProgramTo: (program) ->
       @device.rest.changeProgramTo({program}, global: no)
         .done(ajaxShowToast)
@@ -184,22 +107,6 @@ $(document).on 'templateinit', (event) ->
         .done(ajaxShowToast)
         .fail(ajaxAlertFail)
         .always( => @input.spinbox('enable') )
-
-    ###
-    changeTemperatureLowTo: (temperatureSetpoint) ->
-      @input2.spinbox('disable')
-      @device.rest.changeTemperatureLowTo({temperatureSetpoint}, global: no)
-        .done(ajaxShowToast)
-        .fail(ajaxAlertFail)
-        .always( => @input2.spinbox('enable') )
-
-    changeTemperatureHighTo: (temperatureSetpoint) ->
-      @input3.spinbox('disable')
-      @device.rest.changeTemperatureHighTo({temperatureSetpoint}, global: no)
-        .done(ajaxShowToast)
-        .fail(ajaxAlertFail)
-        .always( => @input3.spinbox('enable') )
-    ###
 
   # register the item-class
   pimatic.templateClasses['tadothermostat'] = TadoThermostatItem

@@ -103,7 +103,7 @@ module.exports = (env) ->
 
     apiDelete:(path) ->
       return this.refreshToken().then(() =>
-        console.log("Path: "+path)
+        #console.log("Path: "+path)
         return new Promise((resolve, reject) =>
           request.delete(
             url: BASE_URL + '/api/v2' + path
@@ -113,7 +113,7 @@ module.exports = (env) ->
             auth:
               bearer: this.token.access_token
           , (err, response, result) ->
-            if (err || response.statusCode != 200 || response.statusCode != 204 )
+            if (err || !(response.statusCode == 200 || response.statusCode == 204 ))
               reject(err || result)
             else
               resolve(result)
@@ -141,16 +141,8 @@ module.exports = (env) ->
       return this.api("/homes/#{homeId}/mobileDevices")
 
 
-    setState:(homeId, zoneId, pwr, temp) =>
-      data =
-        setting:
-          type: "HEATING"
-          power: pwr
-          temperature: 
-            celsius: temp
-        termination:
-          type: "MANUAL"
-      console.log("setState data: "+JSON.stringify(data,null,2))
+    setState:(homeId, zoneId, data) => #pwr, temp) =>
+      #console.log("setState data: "+JSON.stringify(data,null,2))
       return this.apiSet("/homes/#{homeId}/zones/#{zoneId}/overlay", data)
 
     ###

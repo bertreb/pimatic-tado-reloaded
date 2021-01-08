@@ -10,3 +10,6 @@
 	* fix rule handling
 * 20210107, v.0.2.0
 	* tuned gui to heating only with home/away
+* 20210108, v.0.2.1
+	* initial testing and edit
+	* update readme

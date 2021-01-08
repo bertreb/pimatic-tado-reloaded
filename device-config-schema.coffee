@@ -13,26 +13,10 @@ module.exports = {
         description: "Interval in ms to interace with Tado web, the minimal reading interval should be 120000 (2 min)"
         type: "integer"
         default: 120000
-      heating:
-        description: "Supports heating if enabled"
-        type: "boolean"
-        default: true
-      cooling:
-        description: "Supports cooling if enabled"
-        type: "boolean"
-        default: false
-      heatcool:
-        description: "Supports heating and cooling if enabled"
-        type: "boolean"
-        default: false
-      minThresholdCelsius:
-        description: "supported minimum temperature range for this device (in degrees Celsius)"
+      toAutoTime:
+        description: "Time in seconds to go back to auto, after manual is set. If 0, timer is not set"
         type: "number"
-        default: 5
-      maxThresholdCelsius:
-        description: "supported maximum temperature range for this device (in degrees Celsius)"
-        type: "number"
-        default: 30
+        default: 0
       deviceId:
         description: "Tado id of the mobile device"
         type: "integer"

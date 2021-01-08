@@ -19,48 +19,37 @@ The default mode is 'heat'. This is the mode for the most common used heating sy
 zone: "Tado zone id"
 interval: "Interval in ms to interace with Tado web, minimum should be 120000 (2 min)"
   default: 120000
-heating: "Supports heating if enabled"
-  default: true
-cooling: "Supports cooling if enabled"
-  default: false
-heatcool: "Supports heating and cooling if enabled"
-  default: false
-minThresholdCelsius: "supported minimum temperature range for this device (in degrees Celsius)"
-  default: 5
-maxThresholdCelsius: "supported maximum temperature range for this device (in degrees Celsius)"
-  default: 30
+toAutoTime: "Time in seconds to go back to auto, if mode is set to manual. If 0 timer is disabled"
+  default: 0
+deviceId: "Tado id of the mobile device"
 ```
+
+### The available attributes
+```
+- setPoint: The target temperature. The input in the gui
+- temperatureRoom: The thermostat environment temperature
+- humidityRoom : The thermostat environment humidity
+- power: If thermostat is on or off
+- program: The program of the thermostaat; manual or auto
+- connected: If the thermostat is connected or not
+- presence : If the mobile device is away or at home (deviceId)
+```
+Only temperatureRoom, humidityRoom and connected, are visible in the gui. All attributes are available as variable.
+
 
 ### The rules syntax
 ```
 thermostat <TadoThermostat device>
-    heat | heatcool | cool |
-    on | eco | off |
+    on | off |
     setpoint [<temperature>|<$temp variable>] |
-    setpoint low [<temperature>|<$temp variable>] | setpoint high [<temperature>|<$temp variable] |
     manual | auto
 ```
 
 ### The variables to be set
 ```
 - setPoint: The target temperature in heat or cool mode. The left input in the gui
-- setPointLow: The low target temperature in heatcool mode
-  Below that value the heater will turn on. The middle input in the gui
-- setPointHigh: The high target temperature in heatcool mode.
-  Above that value the cooler with turn on. The right input in the gui
-- eco: Set the whole thermostat in eco state
 - power: Switch the thermostat on or off
-- mode: The current mode of the heater (heat,heatcool or cool)
 - manual : Set the current program to manual
 - auto : Set the current program to auto
 ```
 
-### The state variables
-```
-- active: True if heater or cooler is on
-- heater: True if the heater is on
-- cooler: True if the cooler is on
-```
-
-With this device you get the maximum thermostat functionality in Google Assistant. This device can be added in pimatic-assistant.
-Real heaters and coolers can be connected via rules based on the TadoThermostat variables.
