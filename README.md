@@ -10,7 +10,7 @@ TadoThermostat
 ----
 The TadoThermostat device is a thermostat device for heating control. You can control the target temperature of the thermostat (the setPoint) and if the thermostat is controlled manually or via a shedule (auto).
 
-The gui.
+The user interface.
 
 ![](/screens/tado-thermostat.png)
 
