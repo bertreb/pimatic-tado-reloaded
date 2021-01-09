@@ -3,14 +3,23 @@ Pimatic plugin for Tado device
 
 This plugin is for connecting Tado devices to Pimatic. Its a reloaded version of the plugin pimatic-tado writen by [TH1485](https://github.com/TH1485/pimatic-tado).
 
-This plugin creates TadoThermostat devices to use within Pimatic. The TadoThermostat can be controlled via the gui or via rules.
+This plugin creates TadoThermostat devices to use within Pimatic.
+The TadoThermostat device is a thermostat device for heating control. You can control the target temperature of the thermostat (the setPoint) and if the thermostat is controlled manually or via a shedule (auto).
+
+### The plugin
+
+You can install the plugin via the plugins page or add the plugin in config.json.
+
+The Tado Themostats are added via Pimatic's discovery function. Start the 'discover devices' and select the Tado thermostat you want to use. After saving the config, the thermostat can be added to a page in the gui.
+In the Tado plugin confug the loginname and the password are required. They are the same as the credentials for the Tado App.
+```
+loginname: Tado weblogin
+password: Tado webpassword
+debug: Log information for debugging
+```
 
 TadoThermostat
 ----
-The TadoThermostat device is a thermostat device for heating control. You can control the target temperature of the thermostat (the setPoint) and if the thermostat is controlled manually or via a shedule (auto).
-
-The Tado Themostats are added via Pimatic's discovery function. Start the 'discover devices' and select the Tado thermostat you want to use. After saving the config, the thermostat can be added to a page in the gui.
-
 
 The user interface.
 
