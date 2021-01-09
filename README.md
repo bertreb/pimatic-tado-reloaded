@@ -13,9 +13,9 @@ You can install the plugin via the plugins page or add the plugin in config.json
 The Tado Themostats are added via Pimatic's discovery function. Start the 'discover devices' and select the Tado thermostat you want to use. After saving the config, the thermostat can be added to a page in the gui.
 In the Tado plugin confug the loginname and the password are required. They are the same as the credentials for the Tado App.
 ```
-loginname: Tado weblogin
-password: Tado webpassword
-debug: Log information for debugging
+loginname: "Tado weblogin name"
+password: "Tado webpassword"
+debug: "Log information for debugging"
 ```
 
 TadoThermostat
