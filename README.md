@@ -3,8 +3,8 @@ Pimatic plugin for Tado device
 
 This plugin is for connecting Tado devices to Pimatic. Its a reloaded version of the plugin pimatic-tado writen by [TH1485](https://github.com/TH1485/pimatic-tado).
 
-This plugin creates TadoThermostat devices to use within Pimatic.
-The TadoThermostat device is a thermostat device for heating control. You can control the target temperature of the thermostat (the setPoint) and if the thermostat is controlled manually or via a shedule (auto).
+This plugin creates TadoThermostat devices to use in Pimatic, that will give the possibility control Tado thermostats via the gui or via rules.
+A TadoThermostat device is a thermostat device for heating control. You can control the target temperature of the thermostat (the setPoint) and if the thermostat is controlled manually or via a shedule (auto).
 
 ### The plugin
 
