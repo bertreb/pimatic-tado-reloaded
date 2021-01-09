@@ -34,7 +34,7 @@ deviceId: "Tado id of the mobile device. Configurable in the Tado mobile app"
 - connected: If the thermostat is connected or not
 - presence : If the mobile device is away or at home (deviceId)
 ```
-Only temperatureRoom, humidityRoom and connected, are visible in the gui. All attributes are available as variable.
+TemperatureRoom, humidityRoom and connected are visible as value in the gui. Power (on/off), program (manual/auto) and presence (home/away) are visible as buttons in the Gui. All attributes are available as variable.
 
 
 ### The rules syntax
