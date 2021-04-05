@@ -17,3 +17,5 @@
 	* fix gui error
 * 20210108, v.0.2.3
 	* test and update on/off
+* 20210405, v.0.2.4
+	* added heating percentage

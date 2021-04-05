@@ -182,6 +182,12 @@ module.exports = (env) ->
         label: "Temperature Setpoint"
         unit: "°C"
         hidden: true
+      percentage:
+        description: "The heating percentage"
+        type: "number"
+        acronym: "heating"
+        label: "Heating percentage"
+        unit: "%"
       power:
         description: "The power mode"
         type: "boolean"
@@ -231,7 +237,7 @@ module.exports = (env) ->
       @_program = lastState?.program?.value or "auto"
       @_temperatureRoom = lastState?.temperatureRoom?.value or 20
       @_humidityRoom = lastState?.humidityRoom?.value or 50
-      #@_temperatureOutdoor = lastState?.temperatureOutdoor?.value or 20
+      @_percentage = lastState?.percentage?.value or 0
       #@_humidityOutdoor = lastState?.humidityOutdoor?.value or 50
       #@_timeToTemperatureSetpoint = lastState?.timeToTemperatureSetpoint?.value or 0
       #@_battery = lastState?.battery?.value or "ok"
@@ -303,6 +309,8 @@ module.exports = (env) ->
         @_setHumidityRoom(state.sensorDataPoints.humidity.percentage)
       if state.setting.temperature?.celsius?
         @_setSetpoint(state.setting.temperature.celsius)
+      if state.activityDataPoints?.heatingPower?.percentage?
+        @_setPercentage(state.activityDataPoints.heatingPower.percentage)
       #env.logger.debug("state.termination.type: " + state.termination.type) if state.termination?.type?
       if state.setting.power?
         if state.setting.power is "ON"
@@ -320,6 +328,7 @@ module.exports = (env) ->
     getProgram: () -> Promise.resolve(@_program)
     getTemperatureSetpoint: () -> Promise.resolve(@_temperatureSetpoint)
     getTemperatureRoom: () -> Promise.resolve(@_temperatureRoom)
+    getPercentage: () -> Promise.resolve(@_percentage)
     getHumidityRoom: () -> Promise.resolve(@_humidityRoom)
     getConnected: () -> Promise.resolve(@_connected)
     getPresence: () -> Promise.resolve @_presence
@@ -364,6 +373,11 @@ module.exports = (env) ->
       if humidityRoom is @_humidityRoom then return
       @_humidityRoom = humidityRoom
       @emit "humidityRoom", @_humidityRoom
+
+    _setPercentage: (percentage) ->
+      if percentage is @_percentage then return
+      @_percentage = percentage
+      @emit "percentage", @_percentage
 
     changeProgramTo: (program) ->
       if plugin.home?.id?
