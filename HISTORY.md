@@ -19,3 +19,5 @@
 	* test and update on/off
 * 20210405, v.0.2.4
 	* added heating percentage
+* 20210405, v.0.2.5
+	* fix atHome

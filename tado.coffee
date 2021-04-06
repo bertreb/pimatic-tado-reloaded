@@ -600,7 +600,7 @@ module.exports = (env) ->
           if @config.debug
             env.logger.debug("mobileDevices received: #{JSON.stringify(mobileDevices)}")
           for mobileDevice in mobileDevices
-            if mobileDevice.id == @deviceId
+            if mobileDevice.id == @deviceId and mobileDevice.location?.atHome?
               @_presence =  mobileDevice.location.atHome
               @_relativeDistance = (1-mobileDevice.location.relativeDistanceFromHomeFence) * 100
               @emit "presence", @_presence
